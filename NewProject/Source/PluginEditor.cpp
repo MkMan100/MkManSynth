@@ -10,13 +10,12 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     // Lambda Helper aggiornata per distanziare i testi ed evitare accavallamenti
     auto initRotary = [this] (juce::Slider& s, juce::Label& l, const juce::String& text) {
         s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        // Box del valore numerico più basso (14px) per lasciare spazio sotto
         s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 14); 
         addAndMakeVisible (s);
         
         l.setText (text, juce::dontSendNotification);
         l.setJustificationType (juce::Justification::centred);
-        l.setFont (juce::Font (12.0f, juce::Font::plain)); // Font più compatto ed elegante
+        l.setFont (juce::Font (12.0f, juce::Font::plain)); 
         addAndMakeVisible (l);
     };
 
@@ -94,7 +93,6 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     initRotary (macroSpreadSlider, macroSpreadLabel, juce::String("Unison Spread"));
     macroSpreadAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_spread", macroSpreadSlider);
 
-    // Finestra ampia
     setSize (950, 500);
 }
 
@@ -102,14 +100,14 @@ MkManSynthAudioProcessorEditor::~MkManSynthAudioProcessorEditor() {}
 
 void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xFF14141C)); // Sfondo dark premium
+    g.fillAll (juce::Colour (0xFF14141C)); 
 
     g.setColour (juce::Colours::white.withAlpha (0.07f));
-    g.drawRect (15, 15, 680, 140, 2);   // Box Oscillatori
-    g.drawRect (15, 175, 430, 140, 2);  // Box ADSR
-    g.drawRect (460, 175, 235, 140, 2); // Box LFO
-    g.drawRect (15, 335, 680, 150, 2);  // Box FX ed EQ
-    g.drawRect (715, 15, 220, 470, 2);  // Box Macro Performance
+    g.drawRect (15, 15, 680, 140, 2);   
+    g.drawRect (15, 175, 430, 140, 2);  
+    g.drawRect (460, 175, 235, 140, 2); 
+    g.drawRect (15, 335, 680, 150, 2);  
+    g.drawRect (715, 15, 220, 470, 2);  
 
     g.setColour (juce::Colours::cyan.withAlpha (0.8f));
     g.setFont (juce::Font (14.0f, juce::Font::bold));
@@ -124,11 +122,9 @@ void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void MkManSynthAudioProcessorEditor::resized()
 {
-    // Rigida riorganizzazione geometrica senza sovrapposizioni
-
     // --- Riga 1: Oscillatori ed Oscilloscopio centrale ---
     osc1MorphSlider.setBounds (30, 55, 90, 90);
-    osc1MorphLabel.setBounds (30, 132, 90, 20); // Spostata a 132px (+7px di respiro)
+    osc1MorphLabel.setBounds (30, 132, 90, 20); 
     
     osc1DetuneSlider.setBounds (140, 55, 90, 90);
     osc1DetuneLabel.setBounds (140, 132, 90, 20);
@@ -136,7 +132,6 @@ void MkManSynthAudioProcessorEditor::resized()
     oscMixSlider.setBounds (250, 55, 90, 90);
     oscMixLabel.setBounds (250, 132, 90, 20);
 
-    // Centrato perfettamente nel box oscillatori
     oscilloscope.setBounds (355, 45, 90, 95);
 
     osc2MorphSlider.setBounds (460, 55, 90, 90);
@@ -162,4 +157,34 @@ void MkManSynthAudioProcessorEditor::resized()
     lfoRateLabel.setBounds (470, 287, 80, 20);
     
     lfoDepthSlider.setBounds (555, 215, 80, 80);
-    lfoDepthLabel.setBounds (555, 287
+    lfoDepthLabel.setBounds (555, 287, 80, 20);
+    
+    lfoDestMenu.setBounds (640, 220, 50, 22);
+    lfoDestLabel.setBounds (630, 250, 70, 20);
+
+    // --- Riga 3: Filtro, Distorsione ed EQ ---
+    cutoffSlider.setBounds (25, 375, 95, 95);
+    cutoffLabel.setBounds (25, 457, 95, 20);
+    
+    qSlider.setBounds (135, 375, 95, 95);
+    qLabel.setBounds (135, 457, 95, 20);
+    
+    distDriveSlider.setBounds (245, 375, 95, 95);
+    distDriveLabel.setBounds (245, 457, 95, 20);
+    
+    eqBassSlider.setBounds (450, 375, 95, 95);
+    eqBassLabel.setBounds (450, 457, 95, 20);
+    
+    eqTrebleSlider.setBounds (560, 375, 95, 95);
+    eqTrebleLabel.setBounds (560, 457, 95, 20);
+
+    // --- Colonna Macro Destra ---
+    macroLeslieSlider.setBounds (760, 60, 130, 130);
+    macroLeslieLabel.setBounds (760, 177, 130, 20);
+
+    macroSpaceSlider.setBounds (760, 205, 130, 130);
+    macroSpaceLabel.setBounds (760, 322, 130, 20);
+
+    macroSpreadSlider.setBounds (760, 350, 130, 130);
+    macroSpreadLabel.setBounds (760, 467, 130, 20);
+}
