@@ -2,219 +2,176 @@
 #include "PluginEditor.h"
 
 MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p), audioProcessor (p), oscilloscope (p)
 {
+    // Inizializza e mostra l'oscilloscopio a schermo
+    addAndMakeVisible (oscilloscope);
+
+    auto initRotary = [this] (juce::Slider& s, juce::Label& l, const juce::String& text) {
+        s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 65, 18);
+        addAndMakeVisible (s);
+        l.setText (text, juce::dontSendNotification);
+        l.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (l);
+    };
+
     // --- OSCILLATORI ---
-    addAndMakeVisible (osc1WaveMenu);
-    osc1WaveMenu.addItem ("Sine", 1);
-    osc1WaveMenu.addItem ("Saw", 2);
-    osc1WaveMenu.addItem ("Square", 3);
-    osc1WaveMenu.addItem ("Triangle", 4);
-    osc1WaveAttach = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, "osc1_wave", osc1WaveMenu);
-    osc1WaveLabel.setText (juce::String ("Osc 1 Wave"), juce::dontSendNotification);
-    addAndMakeVisible (osc1WaveLabel);
+    initRotary (osc1MorphSlider, osc1MorphLabel, juce::String("Osc 1 Morph"));
+    osc1MorphAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc1_morph", osc1MorphSlider);
 
-    addAndMakeVisible (osc2WaveMenu);
-    osc2WaveMenu.addItem ("Sine", 1);
-    osc2WaveMenu.addItem ("Saw", 2);
-    osc2WaveMenu.addItem ("Square", 3);
-    osc2WaveMenu.addItem ("Triangle", 4);
-    osc2WaveAttach = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, "osc2_wave", osc2WaveMenu);
-    osc2WaveLabel.setText (juce::String ("Osc 2 Wave"), juce::dontSendNotification);
-    addAndMakeVisible (osc2WaveLabel);
+    initRotary (osc2MorphSlider, osc2MorphLabel, juce::String("Osc 2 Morph"));
+    osc2MorphAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc2_morph", osc2MorphSlider);
 
-    oscMixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    oscMixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (oscMixSlider);
-    oscMixLabel.setText (juce::String ("Osc Mix"), juce::dontSendNotification);
-    oscMixLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (oscMixLabel);
+    initRotary (oscMixSlider, oscMixLabel, juce::String("Osc Mix"));
     oscMixAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc_mix", oscMixSlider);
 
-    osc1DetuneSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    osc1DetuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (osc1DetuneSlider);
-    osc1DetuneLabel.setText (juce::String ("Osc 1 Detune"), juce::dontSendNotification);
-    osc1DetuneLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (osc1DetuneLabel);
+    initRotary (osc1DetuneSlider, osc1DetuneLabel, juce::String("Osc 1 Detune"));
     osc1DetuneAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc1_detune", osc1DetuneSlider);
 
-    osc2DetuneSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    osc2DetuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (osc2DetuneSlider);
-    osc2DetuneLabel.setText (juce::String ("Osc 2 Detune"), juce::dontSendNotification);
-    osc2DetuneLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (osc2DetuneLabel);
+    initRotary (osc2DetuneSlider, osc2DetuneLabel, juce::String("Osc 2 Detune"));
     osc2DetuneAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc2_detune", osc2DetuneSlider);
 
     // --- ADSR ---
-    attackSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    attackSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (attackSlider);
-    attackLabel.setText (juce::String ("Attack"), juce::dontSendNotification);
-    attackLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (attackLabel);
+    initRotary (attackSlider, attackLabel, juce::String("Attack"));
     attackAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_attack", attackSlider);
 
-    decaySlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    decaySlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (decaySlider);
-    decayLabel.setText (juce::String ("Decay"), juce::dontSendNotification);
-    decayLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (decayLabel);
+    initRotary (decaySlider, decayLabel, juce::String("Decay"));
     decayAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_decay", decaySlider);
 
-    sustainSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (sustainSlider);
-    sustainLabel.setText (juce::String ("Sustain"), juce::dontSendNotification);
-    sustainLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (sustainLabel);
+    initRotary (sustainSlider, sustainLabel, juce::String("Sustain"));
     sustainAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_sustain", sustainSlider);
 
-    releaseSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (releaseSlider);
-    releaseLabel.setText (juce::String ("Release"), juce::dontSendNotification);
-    releaseLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (releaseLabel);
+    initRotary (releaseSlider, releaseLabel, juce::String("Release"));
     releaseAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_release", releaseSlider);
 
     // --- LFO ---
-    lfoRateSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    lfoRateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (lfoRateSlider);
-    lfoRateLabel.setText (juce::String ("LFO Rate"), juce::dontSendNotification);
-    lfoRateLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (lfoRateLabel);
+    initRotary (lfoRateSlider, lfoRateLabel, juce::String("LFO Rate"));
     lfoRateAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "lfo_rate", lfoRateSlider);
 
-    lfoDepthSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    lfoDepthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (lfoDepthSlider);
-    lfoDepthLabel.setText (juce::String ("LFO Depth"), juce::dontSendNotification);
-    lfoDepthLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (lfoDepthLabel);
+    initRotary (lfoDepthSlider, lfoDepthLabel, juce::String("LFO Depth"));
     lfoDepthAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "lfo_depth", lfoDepthSlider);
 
-    // --- FX ---
-    cutoffSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    cutoffSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (cutoffSlider);
-    cutoffLabel.setText (juce::String ("Cutoff"), juce::dontSendNotification);
-    cutoffLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (cutoffLabel);
+    addAndMakeVisible (lfoDestMenu);
+    lfoDestMenu.addItem ("Filter", 1);
+    lfoDestMenu.addItem ("Volume", 2);
+    lfoDestMenu.addItem ("Panpot", 3);
+    lfoDestMenu.addItem ("Pitch", 4);
+    lfoDestAttach = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, "lfo_dest", lfoDestMenu);
+    lfoDestLabel.setText (juce::String ("LFO Target"), juce::dontSendNotification);
+    addAndMakeVisible (lfoDestLabel);
+
+    // --- FILTER & FX & EQ ---
+    initRotary (cutoffSlider, cutoffLabel, juce::String("Cutoff"));
     cutoffAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "filter_cutoff", cutoffSlider);
 
-    qSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    qSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (qSlider);
-    qLabel.setText (juce::String ("Resonance"), juce::dontSendNotification);
-    qLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (qLabel);
+    initRotary (qSlider, qLabel, juce::String("Resonance"));
     qAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "filter_q", qSlider);
 
-    distDriveSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    distDriveSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (distDriveSlider);
-    distDriveLabel.setText (juce::String ("Dist Drive"), juce::dontSendNotification);
-    distDriveLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (distDriveLabel);
+    initRotary (distDriveSlider, distDriveLabel, juce::String("Dist Drive"));
     distDriveAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "dist_drive", distDriveSlider);
 
-    delayTimeSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    delayTimeSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (delayTimeSlider);
-    delayTimeLabel.setText (juce::String ("Delay Time"), juce::dontSendNotification);
-    delayTimeLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (delayTimeLabel);
-    delayTimeAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "delay_time", delayTimeSlider);
+    initRotary (eqBassSlider, eqBassLabel, juce::String("EQ Bass"));
+    eqBassAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "eq_bass", eqBassSlider);
 
-    delayFeedbackSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    delayFeedbackSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (delayFeedbackSlider);
-    delayFeedbackLabel.setText (juce::String ("Delay FB"), juce::dontSendNotification);
-    delayFeedbackLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (delayFeedbackLabel);
-    delayFeedbackAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "delay_feedback", delayFeedbackSlider);
+    initRotary (eqTrebleSlider, eqTrebleLabel, juce::String("EQ Treble"));
+    eqTrebleAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "eq_treble", eqTrebleSlider);
 
-    macroLeslieSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    macroLeslieSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible (macroLeslieSlider);
-    macroLeslieLabel.setText (juce::String ("Leslie Mod"), juce::dontSendNotification);
-    macroLeslieLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (macroLeslieLabel);
+    // --- MACRO ---
+    initRotary (macroLeslieSlider, macroLeslieLabel, juce::String("Leslie Mod"));
     macroLeslieAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_leslie", macroLeslieSlider);
 
-    setSize (750, 400);
+    initRotary (macroSpaceSlider, macroSpaceLabel, juce::String("Space Echo"));
+    macroSpaceAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_space", macroSpaceSlider);
+
+    initRotary (macroSpreadSlider, macroSpreadLabel, juce::String("Unison Spread"));
+    macroSpreadAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_spread", macroSpreadSlider);
+
+    setSize (950, 500);
 }
 
 MkManSynthAudioProcessorEditor::~MkManSynthAudioProcessorEditor() {}
 
 void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xFF1A1A24));
+    g.fillAll (juce::Colour (0xFF14141C)); 
 
-    g.setColour (juce::Colours::white.withAlpha (0.1f));
-    g.drawRect (10, 10, 730, 110, 2); 
-    g.drawRect (10, 130, 360, 110, 2); 
-    g.drawRect (380, 130, 180, 110, 2); 
-    g.drawRect (10, 250, 550, 140, 2); 
-    g.drawRect (570, 130, 170, 260, 2); 
+    g.setColour (juce::Colours::white.withAlpha (0.07f));
+    g.drawRect (15, 15, 680, 140, 2);   // Box Osc
+    g.drawRect (15, 175, 430, 140, 2);  // Box ADSR
+    g.drawRect (460, 175, 235, 140, 2); // Box LFO
+    g.drawRect (15, 335, 680, 150, 2);  // Box FX/EQ
+    g.drawRect (715, 15, 220, 470, 2);  // Box Macro
 
-    g.setColour (juce::Colours::cyan);
-    g.setFont (14.0f);
-    g.drawText (juce::String ("OSCILLATORS (UNISON 5+5)"), 20, 15, 300, 20, juce::Justification::left);
-    g.drawText (juce::String ("AMPLITUDE ENVELOPE (ADSR)"), 20, 135, 300, 20, juce::Justification::left);
-    g.drawText (juce::String ("GLOBAL LFO"), 390, 135, 150, 20, juce::Justification::left);
-    g.drawText (juce::String ("FILTER & EFFECTS CHAIN"), 20, 255, 300, 20, juce::Justification::left);
+    g.setColour (juce::Colours::cyan.withAlpha (0.8f));
+    g.setFont (juce::Font (14.0f, juce::Font::bold));
+    g.drawText (juce::String ("WAVE MORPHING OSCILLATORS (UNISON 5+5)"), 25, 20, 400, 20, juce::Justification::left);
+    g.drawText (juce::String ("AMPLITUDE ENVELOPE (ADSR)"), 25, 180, 300, 20, juce::Justification::left);
+    g.drawText (juce::String ("MATRIX LFO"), 470, 180, 150, 20, juce::Justification::left);
+    g.drawText (juce::String ("FILTER & EFFECTS CHAIN (WITH EQ)"), 25, 340, 400, 20, juce::Justification::left);
     
-    g.setColour (juce::Colours::coral);
-    g.drawText (juce::String ("PERFORMANCE MACRO"), 580, 135, 160, 20, juce::Justification::left);
+    g.setColour (juce::Colours::orange.withAlpha (0.9f));
+    g.drawText (juce::String ("PERFORMANCE MACROS"), 730, 20, 200, 20, juce::Justification::left);
 }
 
 void MkManSynthAudioProcessorEditor::resized()
 {
-    osc1WaveMenu.setBounds (20, 45, 100, 25);
-    osc1WaveLabel.setBounds (20, 75, 100, 20);
+    // --- Riga 1: Oscillatori ---
+    osc1MorphSlider.setBounds (30, 55, 90, 90);
+    osc1MorphLabel.setBounds (30, 125, 90, 20);
     
-    osc1DetuneSlider.setBounds (130, 35, 80, 80);
-    osc1DetuneLabel.setBounds (130, 5, 80, 20);
+    osc1DetuneSlider.setBounds (140, 55, 90, 90);
+    osc1DetuneLabel.setBounds (140, 125, 90, 20);
 
-    oscMixSlider.setBounds (230, 35, 80, 80);
-    oscMixLabel.setBounds (230, 5, 80, 20);
+    oscMixSlider.setBounds (250, 55, 90, 90);
+    oscMixLabel.setBounds (250, 125, 90, 20);
 
-    osc2WaveMenu.setBounds (340, 45, 100, 25);
-    osc2WaveLabel.setBounds (340, 75, 100, 20);
+    // L'oscilloscopio riempie elegantemente la sezione centrale della riga degli oscillatori!
+    oscilloscope.setBounds (355, 45, 90, 95);
 
-    osc2DetuneSlider.setBounds (450, 35, 80, 80);
-    osc2DetuneLabel.setBounds (450, 5, 80, 20);
+    osc2MorphSlider.setBounds (460, 55, 90, 90);
+    osc2MorphLabel.setBounds (460, 125, 90, 20);
 
-    attackSlider.setBounds (20, 155, 80, 80);
-    attackLabel.setBounds (20, 135, 80, 20);
-    decaySlider.setBounds (105, 155, 80, 80);
-    decayLabel.setBounds (105, 135, 80, 20);
-    sustainSlider.setBounds (190, 155, 80, 80);
-    sustainLabel.setBounds (190, 135, 80, 20);
-    releaseSlider.setBounds (275, 155, 80, 80);
-    releaseLabel.setBounds (275, 135, 80, 20);
+    osc2DetuneSlider.setBounds (570, 55, 90, 90);
+    osc2DetuneLabel.setBounds (570, 125, 90, 20);
 
-    lfoRateSlider.setBounds (390, 155, 80, 80);
-    lfoRateLabel.setBounds (390, 135, 80, 20);
-    lfoDepthSlider.setBounds (475, 155, 80, 80);
-    lfoDepthLabel.setBounds (475, 135, 80, 20);
+    // --- Riga 2: ADSR & LFO ---
+    attackSlider.setBounds (25, 215, 85, 85);
+    attackLabel.setBounds (25, 280, 85, 20);
+    decaySlider.setBounds (120, 215, 85, 85);
+    decayLabel.setBounds (120, 280, 85, 20);
+    sustainSlider.setBounds (215, 215, 85, 85);
+    sustainLabel.setBounds (215, 280, 85, 20);
+    releaseSlider.setBounds (310, 215, 85, 85);
+    releaseLabel.setBounds (310, 280, 85, 20);
 
-    cutoffSlider.setBounds (20, 290, 95, 95);
-    cutoffLabel.setBounds (20, 270, 95, 20);
-    qSlider.setBounds (125, 290, 95, 95);
-    qLabel.setBounds (125, 270, 95, 20);
-    distDriveSlider.setBounds (235, 290, 95, 95);
-    distDriveLabel.setBounds (235, 270, 95, 20);
-    delayTimeSlider.setBounds (345, 290, 95, 95);
-    delayTimeLabel.setBounds (345, 270, 95, 20);
-    delayFeedbackSlider.setBounds (455, 290, 95, 95);
-    delayFeedbackLabel.setBounds (455, 270, 95, 20);
+    lfoRateSlider.setBounds (470, 215, 80, 80);
+    lfoRateLabel.setBounds (470, 280, 80, 20);
+    lfoDepthSlider.setBounds (555, 215, 80, 80);
+    lfoDepthLabel.setBounds (555, 280, 80, 20);
+    lfoDestMenu.setBounds (640, 220, 50, 22);
+    lfoDestLabel.setBounds (630, 248, 70, 20);
 
-    macroLeslieSlider.setBounds (590, 180, 130, 130);
-    macroLeslieLabel.setBounds (590, 315, 130, 20);
+    // --- Riga 3: Filtro, Distorsione ed EQ ---
+    cutoffSlider.setBounds (25, 375, 95, 95);
+    cutoffLabel.setBounds (25, 450, 95, 20);
+    qSlider.setBounds (135, 375, 95, 95);
+    qLabel.setBounds (135, 450, 95, 20);
+    distDriveSlider.setBounds (245, 375, 95, 95);
+    distDriveLabel.setBounds (245, 450, 95, 20);
+    
+    eqBassSlider.setBounds (450, 375, 95, 95);
+    eqBassLabel.setBounds (450, 450, 95, 20);
+    eqTrebleSlider.setBounds (560, 375, 95, 95);
+    eqTrebleLabel.setBounds (560, 450, 95, 20);
+
+    // --- Colonna Macro Destra ---
+    macroLeslieSlider.setBounds (760, 60, 130, 130);
+    macroLeslieLabel.setBounds (760, 170, 130, 20);
+
+    macroSpaceSlider.setBounds (760, 205, 130, 130);
+    macroSpaceLabel.setBounds (760, 315, 130, 20);
+
+    macroSpreadSlider.setBounds (760, 350, 130, 130);
+    macroSpreadLabel.setBounds (760, 460, 130, 20);
 }
