@@ -1,160 +1,220 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+class SynthSound : public juce::SynthesiserSound
 {
-    // Funzione helper per configurare rapidamente gli slider rotativi (pomelli)
-    auto setupRotarySlider = [this] (juce::Slider& slider, juce::Label& label, const juce::String& text) {
-        slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
-        addAndMakeVisible (slider);
+public:
+    SynthSound() {}
+    bool appliesToNote (int) override  { return true; }
+    bool appliesToChannel (int) override  { return true; }
+};
+
+MkManSynthAudioProcessor::MkManSynthAudioProcessor()
+     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+       apvts (*this, nullptr, "Parameters", createParameterLayout())
+{
+    mySynth.clearVoices();
+    for (int i = 0; i < 8; ++i) { mySynth.addVoice (new SynthVoice()); }
+    mySynth.clearSounds();
+    mySynth.addSound (new SynthSound());
+}
+
+MkManSynthAudioProcessor::~MkManSynthAudioProcessor() {}
+const juce::String MkManSynthAudioProcessor::getName() const { return JucePlugin_Name; }
+bool MkManSynthAudioProcessor::acceptsMidi() const { return true; }
+bool MkManSynthAudioProcessor::producesMidi() const { return false; }
+bool MkManSynthAudioProcessor::isMidiEffect() const { return false; }
+double MkManSynthAudioProcessor::getTailLengthSeconds() const { return 0.0; }
+int MkManSynthAudioProcessor::getNumPrograms() { return 1; }
+int MkManSynthAudioProcessor::getCurrentProgram() { return 0; }
+void MkManSynthAudioProcessor::setCurrentProgram (int) {}
+const juce::String MkManSynthAudioProcessor::getProgramName (int) { return {}; }
+void MkManSynthAudioProcessor::changeProgramName (int, const juce::String&) {}
+juce::AudioProcessorEditor* MkManSynthAudioProcessor::createEditor() { return new MkManSynthAudioProcessorEditor (*this); }
+bool MkManSynthAudioProcessor::hasEditor() const { return true; }
+
+void MkManSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    mySynth.setCurrentPlaybackSampleRate (sampleRate);
+    for (int i = 0; i < mySynth.getNumVoices(); ++i)
+    {
+        if (auto* v = dynamic_cast<SynthVoice*> (mySynth.getVoice(i)))
+            v->prepare (sampleRate, samplesPerBlock);
+    }
         
-        label.setText (text, juce::dontSendNotification);
-        label.setFont (juce::Font (12.0f));
-        label.setJustificationType (juce::Justification::centred);
-        addAndMakeVisible (label);
-    };
+    juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) samplesPerBlock, 2 };
+    
+    distortionModule.prepare (spec);
+    leslieLFO.prepare (spec);
+    leslieLFO.initialise ([] (float x) { return std::sin (x); });
 
-    // --- OSCILLATORI ---
-    addAndMakeVisible (osc1WaveMenu);
-    osc1WaveMenu.addItemList (juce::StringArray{"Sine", "Saw", "Square", "Triangle"}, 1);
-    osc1WaveAttach = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, "osc1_wave", osc1WaveMenu);
-    osc1WaveLabel.setText ("Osc 1 Wave", juce::dontSendNotification);
-    addAndMakeVisible (osc1WaveLabel);
+    globalLFO.prepare (spec);
+    globalLFO.initialise ([] (float x) { return std::sin (x); });
+    
+    mainFilter.prepare (spec);
+    mainFilter.setType (juce::dsp::StateVariableTPTFilterType::lowpass);
 
-    addAndMakeVisible (osc2WaveMenu);
-    osc2WaveMenu.addItemList (juce::StringArray{"Sine", "Saw", "Square", "Triangle"}, 1);
-    osc2WaveAttach = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, "osc2_wave", osc2WaveMenu);
-    osc2WaveLabel.setText ("Osc 2 Wave", juce::dontSendNotification);
-    addAndMakeVisible (osc2WaveLabel);
-
-    setupRotarySlider (oscMixSlider, oscMixLabel, "Osc Mix");
-    oscMixAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc_mix", oscMixSlider);
-
-    setupRotarySlider (osc1DetuneSlider, osc1DetuneLabel, "Osc 1 Detune");
-    osc1DetuneAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc1_detune", osc1DetuneSlider);
-
-    setupRotarySlider (osc2DetuneSlider, osc2DetuneLabel, "Osc 2 Detune");
-    osc2DetuneAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "osc2_detune", osc2DetuneSlider);
-
-    // --- INVILUPPO (ADSR) ---
-    setupRotarySlider (attackSlider, attackLabel, "Attack");
-    attackAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_attack", attackSlider);
-
-    setupRotarySlider (decaySlider, decayLabel, "Decay");
-    decayAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_decay", decaySlider);
-
-    setupRotarySlider (sustainSlider, sustainLabel, "Sustain");
-    sustainAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_sustain", sustainSlider);
-
-    setupRotarySlider (releaseSlider, releaseLabel, "Release");
-    releaseAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "env_release", releaseSlider);
-
-    // --- LFO ---
-    setupRotarySlider (lfoRateSlider, lfoRateLabel, "LFO Rate");
-    lfoRateAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "lfo_rate", lfoRateSlider);
-
-    setupRotarySlider (lfoDepthSlider, lfoDepthLabel, "LFO Depth");
-    lfoDepthAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "lfo_depth", lfoDepthSlider);
-
-    // --- FILTRO ED EFFETTI ---
-    setupRotarySlider (cutoffSlider, cutoffLabel, "Cutoff");
-    cutoffAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "filter_cutoff", cutoffSlider);
-
-    setupRotarySlider (qSlider, qLabel, "Resonance");
-    qAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "filter_q", qSlider);
-
-    setupRotarySlider (distDriveSlider, distDriveLabel, "Dist Drive");
-    distDriveAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "dist_drive", distDriveSlider);
-
-    setupRotarySlider (delayTimeSlider, delayTimeLabel, "Delay Time");
-    delayTimeAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "delay_time", delayTimeSlider);
-
-    setupRotarySlider (delayFeedbackSlider, delayFeedbackLabel, "Delay FB");
-    delayFeedbackAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "delay_feedback", delayFeedbackSlider);
-
-    setupRotarySlider (macroLeslieSlider, macroLeslieLabel, "Leslie Mod");
-    macroLeslieAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_leslie", macroLeslieSlider);
-
-    // Dimensioni della finestra dell'interfaccia grafica
-    setSize (750, 400);
+    stereoDelay.prepare (spec);
+    stereoDelay.setMaximumDelayInSamples (static_cast<int>(sampleRate * 2.0));
 }
 
-MkManSynthAudioProcessorEditor::~MkManSynthAudioProcessorEditor() {}
+void MkManSynthAudioProcessor::releaseResources() {}
 
-void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
+bool MkManSynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    // Sfondo scuro in stile cyberpunk / moderno
-    g.fillAll (juce::Colour (0xFF1A1A24));
-
-    g.setColour (juce::Colours::white.withAlpha (0.1f));
-    g.drawRect (10, 10, 730, 110, 2); // Box Oscillatori
-    g.drawRect (10, 130, 360, 110, 2); // Box ADSR
-    g.drawRect (380, 130, 180, 110, 2); // Box LFO
-    g.drawRect (10, 250, 550, 140, 2); // Box FX & Filtro
-    g.drawRect (570, 130, 170, 260, 2); // Box Macro Speciale
-
-    // Titoli delle sezioni
-    g.setColour (juce::Colours::cyan);
-    g.setFont (juce::Font (14.0f, juce::Font::bold));
-    g.drawText ("OSCILLATORS (UNISON 5+5)", 20, 15, 300, 20, juce::Justification::left);
-    g.drawText ("AMPLITUDE ENVELOPE (ADSR)", 20, 135, 300, 20, juce::Justification::left);
-    g.drawText ("GLOBAL LFO", 390, 135, 150, 20, juce::Justification::left);
-    g.drawText ("FILTER & EFFECTS CHAIN", 20, 255, 300, 20, juce::Justification::left);
-    
-    g.setColour (juce::Colours::coral);
-    g.drawText ("PERFORMANCE MACRO", 580, 135, 160, 20, juce::Justification::left);
+    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
-void MkManSynthAudioProcessorEditor::resized()
+void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    // Posizionamento geometrico preciso dei moduli (Griglia 750x400)
+    juce::ScopedNoDenormals noDenormals;
     
-    // Riga 1: Oscillatori
-    osc1WaveMenu.setBounds (20, 45, 100, 25);
-    osc1WaveLabel.setBounds (20, 75, 100, 20);
+    int waveType1 = static_cast<int> (apvts.getRawParameterValue ("osc1_wave")->load());
+    int waveType2 = static_cast<int> (apvts.getRawParameterValue ("osc2_wave")->load());
+    float oscMix  = apvts.getRawParameterValue ("osc_mix")->load();
+    float detune1 = apvts.getRawParameterValue ("osc1_detune")->load();
+    float detune2 = apvts.getRawParameterValue ("osc2_detune")->load();
     
-    osc1DetuneSlider.setBounds (130, 35, 80, 80);
-    osc1DetuneLabel.setBounds (130, 5, 80, 20);
+    float attack  = apvts.getRawParameterValue ("env_attack")->load();
+    float decay   = apvts.getRawParameterValue ("env_decay")->load();
+    float sustain = apvts.getRawParameterValue ("env_sustain")->load();
+    float release = apvts.getRawParameterValue ("env_release")->load();
 
-    oscMixSlider.setBounds (230, 35, 80, 80);
-    oscMixLabel.setBounds (230, 5, 80, 20);
+    float lfoRate   = apvts.getRawParameterValue ("lfo_rate")->load();
+    float lfoDepth  = apvts.getRawParameterValue ("lfo_depth")->load();
 
-    osc2WaveMenu.setBounds (340, 45, 100, 25);
-    osc2WaveLabel.setBounds (340, 75, 100, 20);
+    float baseCutoff    = apvts.getRawParameterValue ("filter_cutoff")->load();
+    float baseResonance = apvts.getRawParameterValue ("filter_q")->load();
+    float distDrive     = apvts.getRawParameterValue ("dist_drive")->load();
+    
+    delayTimeSec  = apvts.getRawParameterValue ("delay_time")->load();
+    delayFeedback = apvts.getRawParameterValue ("delay_feedback")->load();
+    float macroLeslie = apvts.getRawParameterValue ("macro_leslie")->load();
 
-    osc2DetuneSlider.setBounds (450, 35, 80, 80);
-    osc2DetuneLabel.setBounds (450, 5, 80, 20);
+    globalLFO.setFrequency (lfoRate);
+    if (macroLeslie > 0.0f) {
+        leslieLFO.setFrequency (1.2f + (macroLeslie * 5.6f));
+    }
 
-    // Riga 2: ADSR & LFO
-    attackSlider.setBounds (20, 155, 80, 80);
-    attackLabel.setBounds (20, 135, 80, 20);
-    decaySlider.setBounds (105, 155, 80, 80);
-    decayLabel.setBounds (105, 135, 80, 20);
-    sustainSlider.setBounds (190, 155, 80, 80);
-    sustainLabel.setBounds (190, 135, 80, 20);
-    releaseSlider.setBounds (275, 155, 80, 80);
-    releaseLabel.setBounds (275, 135, 80, 20);
+    for (int i = 0; i < mySynth.getNumVoices(); ++i)
+    {
+        if (auto* v = dynamic_cast<SynthVoice*> (mySynth.getVoice(i)))
+        {
+            v->updateWaveform (1, waveType1);
+            v->updateWaveform (2, waveType2);
+            v->updateAdsr (attack, decay, sustain, release);
+        }
+    }
 
-    lfoRateSlider.setBounds (390, 155, 80, 80);
-    lfoRateLabel.setBounds (390, 135, 80, 20);
-    lfoDepthSlider.setBounds (475, 155, 80, 80);
-    lfoDepthLabel.setBounds (475, 135, 80, 20);
+    buffer.clear();
+    
+    for (int i = 0; i < mySynth.getNumVoices(); ++i)
+    {
+        if (auto* v = dynamic_cast<SynthVoice*> (mySynth.getVoice(i)))
+        {
+            float lfoValue = globalLFO.processSample (0.0f) * lfoDepth * 0.05f;
+            v->renderVoice (buffer, 0, buffer.getNumSamples(), oscMix, detune1, detune2, lfoValue);
+        }
+    }
+    
+    mySynth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
 
-    // Riga 3: Filtro ed Effetti
-    cutoffSlider.setBounds (20, 290, 95, 95);
-    cutoffLabel.setBounds (20, 270, 95, 20);
-    qSlider.setBounds (125, 290, 95, 95);
-    qLabel.setBounds (125, 270, 95, 20);
-    distDriveSlider.setBounds (235, 290, 95, 95);
-    distDriveLabel.setBounds (235, 270, 95, 20);
-    delayTimeSlider.setBounds (345, 290, 95, 95);
-    delayTimeLabel.setBounds (345, 270, 95, 20);
-    delayFeedbackSlider.setBounds (455, 290, 95, 95);
-    delayFeedbackLabel.setBounds (455, 270, 95, 20);
+    auto* leftChannel  = buffer.getWritePointer (0);
+    auto* rightChannel = buffer.getWritePointer (1);
+    int numSamples = buffer.getNumSamples();
 
-    // Colonna Destra: Macro Leslie
-    macroLeslieSlider.setBounds (590, 180, 130, 130);
-    macroLeslieLabel.setBounds (590, 315, 130, 20);
+    mainFilter.setResonance (baseResonance);
+
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        float leslieVal = leslieLFO.processSample (0.0f);
+        if (macroLeslie > 0.0f) {
+            float volumeMod = 0.85f + (leslieVal * 0.15f * macroLeslie);
+            leftChannel[sample] *= volumeMod;
+            rightChannel[sample] *= volumeMod;
+        }
+
+        float lfoFilterMod = globalLFO.processSample (0.0f) * lfoDepth * 300.0f;
+        float modulatedCutoff = juce::jlimit (20.0f, 20000.0f, baseCutoff + lfoFilterMod + (leslieVal * macroLeslie * 400.0f));
+        mainFilter.setCutoffFrequency (modulatedCutoff);
+
+        float samples[2] = { leftChannel[sample], rightChannel[sample] };
+        leftChannel[sample]  = mainFilter.processSample (0, samples[0]);
+        rightChannel[sample] = mainFilter.processSample (1, samples[1]);
+    }
+
+    float comp = 1.0f / std::sqrt (distDrive);
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+    {
+        auto* channelData = buffer.getWritePointer (channel);
+        for (int sample = 0; sample < numSamples; ++sample)
+        {
+            channelData[sample] = std::tanh (channelData[sample] * distDrive) * comp;
+        }
+    }
+
+    float delayInSamples = delayTimeSec * static_cast<float> (getSampleRate());
+    stereoDelay.setDelay (delayInSamples);
+
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        float delayedLeft  = stereoDelay.popSample (0);
+        float delayedRight = stereoDelay.popSample (1);
+        float dryLeft  = leftChannel[sample];
+        float dryRight = rightChannel[sample];
+
+        stereoDelay.pushSample (0, dryLeft  + (delayedRight * delayFeedback));
+        stereoDelay.pushSample (1, dryRight + (delayedLeft  * delayFeedback));
+
+        leftChannel[sample]  = dryLeft  + (delayedLeft  * 0.3f);
+        rightChannel[sample] = dryRight + (delayedRight * 0.3f);
+    }
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout MkManSynthAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    
+    params.push_back (std::make_unique<juce::AudioParameterChoice> ("osc1_wave", "Osc 1 Waveform", juce::StringArray{"Sine", "Saw", "Square", "Triangle"}, 0));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> ("osc2_wave", "Osc 2 Waveform", juce::StringArray{"Sine", "Saw", "Square", "Triangle"}, 0));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("osc_mix", "Osc Mix", 0.0f, 1.0f, 0.5f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("osc1_detune", "Osc 1 Unison Detune", 0.0f, 50.0f, 5.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("osc2_detune", "Osc 2 Unison Detune", 0.0f, 50.0f, 10.0f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_attack", "Attack Time", 0.01f, 3.0f, 0.1f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_decay", "Decay Time", 0.01f, 3.0f, 0.3f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_sustain", "Sustain Level", 0.0f, 1.0f, 0.7f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_release", "Release Time", 0.01f, 5.0f, 0.5f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("lfo_rate", "LFO Frequency", 0.1f, 20.0f, 5.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("lfo_depth", "LFO Amount", 0.0f, 1.0f, 0.2f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("filter_cutoff", "Base Cutoff", 20.0f, 15000.0f, 2000.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("filter_q", "Filter Q (Res)", 1.0f, 15.0f, 1.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("dist_drive", "Distortion Drive", 1.0f, 12.0f, 1.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("delay_time", "Delay Time", 0.05f, 1.0f, 0.3f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("delay_feedback", "Delay Feedback", 0.0f, 0.95f, 0.4f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("macro_leslie", "Macro: Leslie", 0.0f, 1.0f, 0.0f));
+
+    return { params.begin(), params.end() };
+}
+
+void MkManSynthAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+{
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    copyXmlToBinary (*xml, destData);
+}
+
+void MkManSynthAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    if (xmlState != nullptr && xmlState->hasTagName (apvts.state.getType()))
+        apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+}
+
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new MkManSynthAudioProcessor();
 }
