@@ -37,6 +37,7 @@ private:
     
     juce::dsp::WaveShaper<float> distortionModule;
     juce::dsp::Oscillator<float> leslieLFO;
+    juce::dsp::Oscillator<float> globalLFO; // <-- AGGIUNTO LFO GLOBALE PER DETUNE/FILTRO
     juce::dsp::StateVariableTPTFilter<float> mainFilter;
     juce::dsp::DelayLine<float> stereoDelay;
     
