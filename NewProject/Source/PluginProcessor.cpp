@@ -110,7 +110,6 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     // 3. Gestione MIDI e rendering audio delle voci
     buffer.clear();
-    mySynth.noteOverlapsAllowed (true);
     
     // Invece del render automatico standard, passiamo noi i parametri alle voci attive
     for (int i = 0; i < mySynth.getNumVoices(); ++i)
