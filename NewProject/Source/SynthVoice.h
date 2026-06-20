@@ -5,39 +5,28 @@
 class SynthVoice : public juce::SynthesiserVoice
 {
 public:
-    SynthVoice()
-    {
-        updateWaveform (1, 0); // Default: Sine
-        updateWaveform (2, 0);
-    }
+    SynthVoice() {}
 
     bool canPlaySound (juce::SynthesiserSound* sound) override { return dynamic_cast<juce::SynthesiserSound*> (sound) != nullptr; }
 
-    void updateWaveform (int group, int type)
-    {
-        auto selectWave = [] (int t) -> std::function<float(float)> {
-            if (t == 1) return [] (float x) { return x / juce::MathConstants<float>::pi; }; // Saw
-            if (t == 2) return [] (float x) { return x > 0.0f ? 1.0f : -1.0f; };            // Square
-            if (t == 3) return [] (float x) { return 1.0f - (2.0f * std::abs (x / juce::MathConstants<float>::pi)); }; // Triangle
-            return [] (float x) { return std::sin (x); };                                   // Sine
-        };
+    void setMorphValues (float morph1, float morph2) { m1 = morph1; m2 = morph2; }
 
-        for (int i = 0; i < 5; ++i)
-        {
-            if (group == 1) osc1Group[i].initialise (selectWave (type));
-            else            osc2Group[i].initialise (selectWave (type));
-        }
+    float generateMorphedSample (float phase, float morphVal)
+    {
+        float sine     = std::sin (phase);
+        float saw      = phase / juce::MathConstants<float>::pi;
+        float square   = phase > 0.0f ? 1.0f : -1.0f;
+        float triangle = 1.0f - (2.0f * std::abs (phase / juce::MathConstants<float>::pi));
+
+        if (morphVal <= 1.0f) return sine     + (saw - sine) * morphVal;
+        if (morphVal <= 2.0f) return saw      + (square - saw) * (morphVal - 1.0f);
+        return square   + (triangle - square) * (morphVal - 2.0f);
     }
 
     void prepare (double sampleRate, int samplesPerBlock)
     {
-        juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) samplesPerBlock, 1 };
-        for (int i = 0; i < 5; ++i)
-        {
-            osc1Group[i].prepare (spec);
-            osc2Group[i].prepare (spec);
-        }
         adsr.setSampleRate (sampleRate);
+        currentSampleRate = sampleRate;
     }
 
     void updateAdsr (float a, float d, float s, float r)
@@ -49,10 +38,11 @@ public:
         adsr.setParameters (adsrParams);
     }
 
-    void startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int) override
+    void startNote (int midiNoteNumber, float, juce::SynthesiserSound*, int) override
     {
         baseFrequency = juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
         adsr.noteOn();
+        for (int i = 0; i < 5; ++i) { phases1[i] = 0.0f; phases2[i] = 0.0f; }
     }
 
     void stopNote (float, bool allowTailOff) override
@@ -61,14 +51,10 @@ public:
         if (!allowTailOff) clearCurrentNote();
     }
 
-    void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override
-    {
-        // Metodo vuoto richiesto, la logica reale usa i parametri passati dal Processor
-    }
+    void renderNextBlock (juce::AudioBuffer<float>&, int, int) override {}
 
-    // Rendering reale orchestrato dal processore per mappare i parametri in tempo reale
     void renderVoice (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples,
-                      float oscMix, float detune1, float detune2, float lfoMod)
+                      float oscMix, float detune1, float detune2, float pitchMod, float panMod, float macroSpread)
     {
         if (!adsr.isActive()) { clearCurrentNote(); return; }
 
@@ -79,41 +65,45 @@ public:
         auto* leftData  = voiceLeft.getWritePointer (0);
         auto* rightData = voiceRight.getWritePointer (0);
 
-        float vol1 = (0.25f * (1.0f - oscMix)) / 5.0f;
-        float vol2 = (0.25f * oscMix) / 5.0f;
+        float vol1 = (0.22f * (1.0f - oscMix)) / 5.0f;
+        float vol2 = (0.22f * oscMix) / 5.0f;
 
-        // Applica frequenze con Detune e modulazione LFO
-        for (int i = 0; i < 5; ++i)
-        {
-            float d1 = 1.0f + ((i - 2) * (detune1 * 0.01f) + lfoMod);
-            float d2 = 1.0f + ((i - 2) * (detune2 * 0.01f) + lfoMod);
-            osc1Group[i].setFrequency (baseFrequency * d1);
-            osc2Group[i].setFrequency (baseFrequency * d2);
-        }
+        float invSampleRate = 1.0f / static_cast<float> (currentSampleRate);
+        float twopi = juce::MathConstants<float>::twoPi;
 
         for (int sample = 0; sample < numSamples; ++sample)
         {
-            float currentSampleLeft = 0.0f;
-            float currentSampleRight = 0.0f;
+            float outL = 0.0f;
+            float outR = 0.0f;
 
             for (int i = 0; i < 5; ++i)
             {
-                float signal = osc1Group[i].processSample (0.0f) * vol1;
-                float pan = (i - 2) * 0.25f; 
-                currentSampleLeft  += signal * std::sqrt (0.5f * (1.0f - pan));
-                currentSampleRight += signal * std::sqrt (0.5f * (1.0f + pan));
+                float freqFactor = 1.0f + ((i - 2) * (detune1 * 0.008f)) + pitchMod;
+                phases1[i] += baseFrequency * freqFactor * twopi * invSampleRate;
+                if (phases1[i] > juce::MathConstants<float>::pi)  phases1[i] -= twopi;
+
+                float sig = generateMorphedSample (phases1[i], m1) * vol1;
+                float pan = juce::jlimit (-1.0f, 1.0f, ((i - 2) * 0.25f) * macroSpread + panMod);
+                
+                outL += sig * std::sqrt (0.5f * (1.0f - pan));
+                outR += sig * std::sqrt (0.5f * (1.0f + pan));
             }
 
             for (int i = 0; i < 5; ++i)
             {
-                float signal = osc2Group[i].processSample (0.0f) * vol2;
-                float pan = (i - 2) * 0.25f;
-                currentSampleLeft  += signal * std::sqrt (0.5f * (1.0f - pan));
-                currentSampleRight += signal * std::sqrt (0.5f * (1.0f + pan));
+                float freqFactor = 1.0f + ((i - 2) * (detune2 * 0.008f)) + pitchMod;
+                phases2[i] += baseFrequency * freqFactor * twopi * invSampleRate;
+                if (phases2[i] > juce::MathConstants<float>::pi)  phases2[i] -= twopi;
+
+                float sig = generateMorphedSample (phases2[i], m2) * vol2;
+                float pan = juce::jlimit (-1.0f, 1.0f, ((i - 2) * 0.25f) * macroSpread + panMod);
+
+                outL += sig * std::sqrt (0.5f * (1.0f - pan));
+                outR += sig * std::sqrt (0.5f * (1.0f + pan));
             }
 
-            leftData[sample]  = currentSampleLeft;
-            rightData[sample] = currentSampleRight;
+            leftData[sample]  = outL;
+            rightData[sample] = outR;
         }
 
         adsr.applyEnvelopeToBuffer (voiceLeft, 0, numSamples);
@@ -131,8 +121,10 @@ public:
 
 private:
     float baseFrequency { 440.0f };
-    juce::dsp::Oscillator<float> osc1Group[5];
-    juce::dsp::Oscillator<float> osc2Group[5];
+    double currentSampleRate { 44100.0 };
+    float phases1[5] { 0.0f };
+    float phases2[5] { 0.0f };
+    float m1 { 1.0f }, m2 { 2.0f };
     juce::ADSR adsr;
     juce::ADSR::Parameters adsrParams;
 };
