@@ -14,7 +14,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JUCE)
 
-# La configurazione VST3 si imposta direttamente qui dentro in JUCE 7
 juce_add_plugin(MkManSynth
     VERSION 1.0.0
     COMPANY_NAME "MkMan"
@@ -24,8 +23,6 @@ juce_add_plugin(MkManSynth
     IS_MIDI_EFFECT FALSE
     PRODUCT_NAME "MkManSynth"
     FORMATS VST3 Standalone
-    VST3_CATEGORIES Synth
-    JUCE_VST3_CAN_REPLACE_VST2 FALSE # Rimuove la dipendenza dai file VST2 mancanti
 )
 
 # Cerca i file SOLO dentro la cartella NewProject/Source
@@ -43,4 +40,10 @@ target_link_libraries(MkManSynth PRIVATE
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags
+)
+
+# FORZATURA FONDAMENTALE: Spegne il flag VST2 direttamente nel preprocessore C++
+# Questo impedisce fisicamente a 'juce_audio_plugin_client_VST3.cpp' di includere il file mancante.
+target_compile_definitions(MkManSynth PUBLIC 
+    JUCE_VST3_CAN_REPLACE_VST2=0
 )
