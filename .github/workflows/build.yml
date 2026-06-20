@@ -1,9 +1,7 @@
-name: Build JUCE Plugin
+name: Build JUCE Plugin (Projucer)
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
     branches: [ main, master ]
 
 jobs:
@@ -12,18 +10,28 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Install JUCE
+      run: |
+        git clone https://github.com/juce-framework/JUCE.git --depth 1
+        
+    - name: Generate Visual Studio Solution
+      run: |
+        ./JUCE/tools/Projucer/Projucer.exe --resave *.jucer
+
+    - name: Build Standalone and VST3
+      run: |
+        msbuild Builds/VisualStudio2022/*_Standalone.vcxproj /p:Configuration=Release /p:Platform=x64
+        msbuild Builds/VisualStudio2022/*_VST3.vcxproj /p:Configuration=Release /p:Platform=x64
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        submodules: recursive
-
-    - name: Configure CMake
-      run: cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
-
-    - name: Build Plugin
-      run: cmake --build build --config Release --parallel
-
-    - name: Upload VST3 Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: MkManSynth-Windows-VST3
-        path: build/*_artefacts/Release/VST3/
+        name: MkManSynth-Windows
+        path: |
+          Builds/VisualStudio2022/x64/Release/Standalone/
+          Builds/VisualStudio2022/x64/Release/VST3/
