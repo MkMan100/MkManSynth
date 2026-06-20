@@ -61,10 +61,10 @@ private:
     
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     
-    // Le 3 tabelle in memoria per le nostre Wavetable complesse
-    juce::dsp::Oscillator<float>::WaveTable wavetableOrgan;
-    juce::dsp::Oscillator<float>::WaveTable wavetableBrass;
-    juce::dsp::Oscillator<float>::WaveTable wavetableCosmic;
+    // CORRETTO: Tabelle in memoria con la firma nativa per WaveTableOscillator
+    juce::dsp::WaveTableOscillator<float>::WaveTableType<float> wavetableOrgan;
+    juce::dsp::WaveTableOscillator<float>::WaveTableType<float> wavetableBrass;
+    juce::dsp::WaveTableOscillator<float>::WaveTableType<float> wavetableCosmic;
     
     juce::dsp::WaveShaper<float> distortionModule;
     juce::dsp::Oscillator<float> leslieLFO;
