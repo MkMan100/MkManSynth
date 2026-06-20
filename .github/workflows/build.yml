@@ -1,4 +1,4 @@
-name: Build JUCE Plugin (Direct MSBuild VS2026)
+name: Build JUCE Plugin (Universal CMake)
 
 on:
   push:
@@ -11,19 +11,22 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v2
 
-    - name: Build Standalone and VST3
-      run: |
-        msbuild Builds/VisualStudio2026/*_Standalone.vcxproj /p:Configuration=Release /p:Platform=x64
-        msbuild Builds/VisualStudio2026/*_VST3.vcxproj /p:Configuration=Release /p:Platform=x64
+    - name: Configure Project via CMake
+      run: cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 
-    - name: Upload Artifacts
+    - name: Build Plugin Components
+      run: cmake --build build --config Release --parallel
+
+    - name: Upload Compiled VST3 and Standalone
       uses: actions/upload-artifact@v4
       with:
-        name: MkManSynth-Windows
+        name: MkManSynth-Windows-Artifacts
         path: |
-          Builds/VisualStudio2026/x64/Release/Standalone/
-          Builds/VisualStudio2026/x64/Release/VST3/
+          build/*_artefacts/Release/VST3/
+          build/*_artefacts/Release/Standalone/
