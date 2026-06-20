@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
 
+# Disattiva esplicitamente gli esempi e i test di JUCE per evitare che fallisca la build
+set(JUCE_BUILD_EXAMPLES OFF CACHE INTERNAL "")
+set(JUCE_BUILD_EXTRAS OFF CACHE INTERNAL "")
+
+project(MkManSynth VERSION 1.0.0 LANGUAGES CXX)
+
 include(FetchContent)
 FetchContent_Declare(
     JUCE
@@ -7,8 +13,6 @@ FetchContent_Declare(
     GIT_TAG        7.0.12
 )
 FetchContent_MakeAvailable(JUCE)
-
-project(MkManSynth VERSION 1.0.0 LANGUAGES CXX)
 
 juce_add_plugin(MkManSynth
     VERSION 1.0.0
@@ -21,8 +25,11 @@ juce_add_plugin(MkManSynth
     FORMATS VST3 Standalone
 )
 
-# COMANDO INTELLIGENTE: Cerca tutti i file .cpp e .h nel progetto in automatico
-file(GLOB_RECURSE SOUND_SOURCES CONFIGURE_DEPENDS "*.cpp" "*.h")
+# CORREZIONE: Cerca i file SOLO dentro la cartella NewProject/Source, ignorando la cartella build!
+file(GLOB_RECURSE SOUND_SOURCES CONFIGURE_DEPENDS 
+    "NewProject/Source/*.cpp" 
+    "NewProject/Source/*.h"
+)
 
 # Passiamo a CMake la lista dei file trovati automaticamente
 target_sources(MkManSynth PRIVATE ${SOUND_SOURCES})
