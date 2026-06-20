@@ -10,6 +10,7 @@
 
 #pragma once
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_dsp/juce_dsp.h>
 
 class SynthVoice : public juce::SynthesiserVoice
 {
@@ -73,23 +74,21 @@ public:
         auto* leftData  = voiceLeft.getWritePointer (0);
         auto* rightData = voiceRight.getWritePointer (0);
 
-        // Recuperiamo i parametri globali (nel VST reale arriveranno dal processore)
+        // Parametri temporanei di volume e pan
         float oscMix = 0.5f; 
         float vol1 = (0.3f * (1.0f - oscMix)) / 5.0f; // Divisione per 5 per evitare il clipping
         float vol2 = (0.2f * oscMix) / 5.0f;
         
         float masterPan1 = -0.5f; // Osc 1 spostato a sinistra
         float masterPan2 = 0.5f;  // Osc 2 spostato a destra
-        float detuneCentsMaster = 15.0f;
 
         // Impostiamo le frequenze scordate a ventaglio per l'Unisono
         for (int i = 0; i < 5; ++i)
         {
-            // Calcolo detune interno all'unisono (es. -7, -3.5, 0, 3.5, 7 cents)
             float uDetune1 = (i - 2) * 3.5f;
-            float uDetune2 = detuneCentsMaster + ((i - 2) * 4.0f);
+            float uDetune2 = 15.0f + ((i - 2) * 4.0f);
 
-            // Traduzione matematica da Cents a moltiplicatore di Frequenza: f = f0 * 2^(cents/1200)
+            // f = f0 * 2^(cents/1200)
             float freq1 = baseFrequency * std::pow (2.0f, uDetune1 / 1200.0f);
             float freq2 = baseFrequency * std::pow (2.0f, uDetune2 / 1200.0f);
 
@@ -108,10 +107,8 @@ public:
             {
                 float signal = osc1Group[i].processSample (0.0f) * vol1;
                 
-                // Distribuzione Stereo Pan Lineare
-                // In un unisono reale distribuiamo i 5 oscillatori da sinistra a destra
                 float internalPan = masterPan1 + ((i - 2) * 0.1f); 
-                internalPan = jmax (-1.0f, jmin (1.0f, internalPan)); // Hard limit tra -1 e 1
+                internalPan = juce::jmax (-1.0f, juce::jmin (1.0f, internalPan)); // Corretto con il prefisso juce::
 
                 float gainL = std::sqrt (0.5f * (1.0f - internalPan));
                 float gainR = std::sqrt (0.5f * (1.0f + internalPan));
@@ -126,7 +123,7 @@ public:
                 float signal = osc2Group[i].processSample (0.0f) * vol2;
                 
                 float internalPan = masterPan2 + ((i - 2) * 0.1f);
-                internalPan = jmax (-1.0f, jmin (1.0f, internalPan));
+                internalPan = juce::jmax (-1.0f, juce::jmin (1.0f, internalPan)); // Corretto con il prefisso juce::
 
                 float gainL = std::sqrt (0.5f * (1.0f - internalPan));
                 float gainR = std::sqrt (0.5f * (1.0f + internalPan));
@@ -139,25 +136,28 @@ public:
             rightData[sample] = currentSampleRight;
         }
 
-        // Applichiamo l'inviluppo ADSR in modo indipendente ai due canali
+        // Applichiamo l'inviluppo ADSR
         adsr.applyEnvelopeToBuffer (voiceLeft, 0, numSamples);
         adsr.applyEnvelopeToBuffer (voiceRight, 0, numSamples);
 
         // Sommiamo il risultato finale nei canali d'uscita principali del VST
         if (outputBuffer.getNumChannels() >= 2)
         {
-            outputBuffer.addFrom (0, startSample, voiceLeft, 0, 0, numSamples); // Canale 0 = Left
-            outputBuffer.addFrom (1, startSample, voiceRight, 0, 0, numSamples); // Canale 1 = Right
+            outputBuffer.addFrom (0, startSample, voiceLeft, 0, 0, numSamples);
+            outputBuffer.addFrom (1, startSample, voiceRight, 0, 0, numSamples);
         }
     }
 
-    // Metodo per aggiornare la tabella delle forme d'onda (Wavetable)
-    void setWavetable (int oscInstance, const juce::dsp::Oscillator<float>::WaveTable& table, bool isOsc1)
+    // Aggiorna l'intera wavetable per tutti e 5 gli oscillatori del gruppo selezionato
+    void updateWavetable (const juce::dsp::WaveTableOscillator<float>::WaveTableType<float>& table, bool updateOsc1)
     {
-        if (isOsc1)
-            osc1Group[oscInstance].setWaveTable (table);
-        else
-            osc2Group[oscInstance].setWaveTable (table);
+        for (int i = 0; i < 5; ++i)
+        {
+            if (updateOsc1)
+                osc1Group[i].setWaveTable (table);
+            else
+                osc2Group[i].setWaveTable (table);
+        }
     }
 
     void pitchWheelMoved (int newPitchWheelValue) override {}
@@ -166,8 +166,9 @@ public:
 private:
     float baseFrequency { 440.0f };
 
-    juce::dsp::Oscillator<float> osc1Group[5];
-    juce::dsp::Oscillator<float> osc2Group[5];
+    // Modificati in WaveTableOscillator per supportare la funzione updateWavetable
+    juce::dsp::WaveTableOscillator<float> osc1Group[5];
+    juce::dsp::WaveTableOscillator<float> osc2Group[5];
     
     juce::ADSR adsr;
     juce::ADSR::Parameters adsrParameters;
