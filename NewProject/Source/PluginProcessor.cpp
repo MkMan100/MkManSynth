@@ -1,6 +1,24 @@
+/*
+  ==============================================================================
+
+    This file contains the basic framework code for a JUCE plugin processor.
+
+  ==============================================================================
+*/
+
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+// Classe concreta necessaria per far funzionare il sintetizzatore JUCE
+class SynthSound : public juce::SynthesiserSound
+{
+public:
+    SynthSound() {}
+    bool appliesToNote (int /*midiNoteNumber*/) override  { return true; }
+    bool appliesToChannel (int /*midiChannel*/) override  { return true; }
+};
+
+//==============================================================================
 MkManSynthAudioProcessor::MkManSynthAudioProcessor()
      : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
        apvts (*this, nullptr, "Parameters", createParameterLayout())
@@ -11,7 +29,7 @@ MkManSynthAudioProcessor::MkManSynthAudioProcessor()
         mySynth.addVoice (new SynthVoice());
     }
     mySynth.clearSounds();
-    mySynth.addSound (new juce::SynthesiserSound());
+    mySynth.addSound (new SynthSound()); // Utilizza la classe concreta corretta
 }
 
 MkManSynthAudioProcessor::~MkManSynthAudioProcessor() {}
@@ -60,8 +78,7 @@ bool MkManSynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    buffer.clear();
-
+    
     float macroLeslie   = apvts.getRawParameterValue ("macro_leslie")->load();
     float baseCutoff    = apvts.getRawParameterValue ("filter_cutoff")->load();
     float baseResonance = apvts.getRawParameterValue ("filter_q")->load();
@@ -96,12 +113,17 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         rightChannel[sample] = mainFilter.processSample (1, samples[1]);
     }
 
-    distortionModule.functionToUse = [distDrive] (float x) {
-        return std::tanh (x * distDrive) * (1.0f / std::sqrt (distDrive));
-    };
-    juce::dsp::AudioBlock<float> audioBlock (buffer);
-    juce::dsp::ProcessContextReplacing<float> context (audioBlock);
-    distortionModule.process (context);
+    // Risolto errore MSVC: applichiamo la distorsione direttamente sui campioni del buffer 
+    // bypassando i limiti della lambda con cattura nel modulo WaveShaper di JUCE 7
+    float comp = 1.0f / std::sqrt (distDrive);
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+    {
+        auto* channelData = buffer.getWritePointer (channel);
+        for (int sample = 0; sample < numSamples; ++sample)
+        {
+            channelData[sample] = std::tanh (channelData[sample] * distDrive) * comp;
+        }
+    }
 
     float delayInSamples = delayTimeSec * static_cast<float> (getSampleRate());
     stereoDelay.setDelay (delayInSamples);
