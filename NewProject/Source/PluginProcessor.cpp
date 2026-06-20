@@ -1,35 +1,22 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-// Classe concreta necessaria per far funzionare il sintetizzatore JUCE
 class SynthSound : public juce::SynthesiserSound
 {
 public:
     SynthSound() {}
-    bool appliesToNote (int /*midiNoteNumber*/) override  { return true; }
-    bool appliesToChannel (int /*midiChannel*/) override  { return true; }
+    bool appliesToNote (int) override  { return true; }
+    bool appliesToChannel (int) override  { return true; }
 };
 
-//==============================================================================
 MkManSynthAudioProcessor::MkManSynthAudioProcessor()
      : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
        apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
     mySynth.clearVoices();
-    for (int i = 0; i < 8; ++i)
-    {
-        mySynth.addVoice (new SynthVoice());
-    }
+    for (int i = 0; i < 8; ++i) { mySynth.addVoice (new SynthVoice()); }
     mySynth.clearSounds();
-    mySynth.addSound (new SynthSound()); // Utilizza la classe concreta corretta
+    mySynth.addSound (new SynthSound());
 }
 
 MkManSynthAudioProcessor::~MkManSynthAudioProcessor() {}
@@ -60,6 +47,9 @@ void MkManSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     distortionModule.prepare (spec);
     leslieLFO.prepare (spec);
     leslieLFO.initialise ([] (float x) { return std::sin (x); });
+
+    globalLFO.prepare (spec);
+    globalLFO.initialise ([] (float x) { return std::sin (x); });
     
     mainFilter.prepare (spec);
     mainFilter.setType (juce::dsp::StateVariableTPTFilterType::lowpass);
@@ -79,33 +69,80 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 {
     juce::ScopedNoDenormals noDenormals;
     
-    float macroLeslie   = apvts.getRawParameterValue ("macro_leslie")->load();
+    // 1. Caricamento di tutti i 15 parametri dall'APVTS
+    int waveType1 = static_cast<int> (apvts.getRawParameterValue ("osc1_wave")->load());
+    int waveType2 = static_cast<int> (apvts.getRawParameterValue ("osc2_wave")->load());
+    float oscMix  = apvts.getRawParameterValue ("osc_mix")->load();
+    float detune1 = apvts.getRawParameterValue ("osc1_detune")->load();
+    float detune2 = apvts.getRawParameterValue ("osc2_detune")->load();
+    
+    float attack  = apvts.getRawParameterValue ("env_attack")->load();
+    float decay   = apvts.getRawParameterValue ("env_decay")->load();
+    float sustain = apvts.getRawParameterValue ("env_sustain")->load();
+    float release = apvts.getRawParameterValue ("env_release")->load();
+
+    float lfoRate   = apvts.getRawParameterValue ("lfo_rate")->load();
+    float lfoDepth  = apvts.getRawParameterValue ("lfo_depth")->load();
+
     float baseCutoff    = apvts.getRawParameterValue ("filter_cutoff")->load();
     float baseResonance = apvts.getRawParameterValue ("filter_q")->load();
     float distDrive     = apvts.getRawParameterValue ("dist_drive")->load();
+    
     delayTimeSec  = apvts.getRawParameterValue ("delay_time")->load();
     delayFeedback = apvts.getRawParameterValue ("delay_feedback")->load();
+    float macroLeslie = apvts.getRawParameterValue ("macro_leslie")->load();
 
+    // 2. Configura LFO Globale ed Envelope per ogni voce attiva
+    globalLFO.setFrequency (lfoRate);
     if (macroLeslie > 0.0f) {
         leslieLFO.setFrequency (1.2f + (macroLeslie * 5.6f));
     }
 
+    for (int i = 0; i < mySynth.getNumVoices(); ++i)
+    {
+        if (auto* v = dynamic_cast<SynthVoice*> (mySynth.getVoice(i)))
+        {
+            v->updateWaveform (1, waveType1);
+            v->updateWaveform (2, waveType2);
+            v->updateAdsr (attack, decay, sustain, release);
+        }
+    }
+
+    // 3. Gestione MIDI e rendering audio delle voci
+    buffer.clear();
+    mySynth.noteOverlapsAllowed (true);
+    
+    // Invece del render automatico standard, passiamo noi i parametri alle voci attive
+    for (int i = 0; i < mySynth.getNumVoices(); ++i)
+    {
+        if (auto* v = dynamic_cast<SynthVoice*> (mySynth.getVoice(i)))
+        {
+            float lfoValue = globalLFO.processSample (0.0f) * lfoDepth * 0.05f; // Modulazione pitch leggera
+            v->renderVoice (buffer, 0, buffer.getNumSamples(), oscMix, detune1, detune2, lfoValue);
+        }
+    }
+    
+    // Gestisce gli eventi midi per accendere/spegnere le note
     mySynth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
 
     auto* leftChannel  = buffer.getWritePointer (0);
     auto* rightChannel = buffer.getWritePointer (1);
     int numSamples = buffer.getNumSamples();
 
+    // 4. Catena Effetti DSP (Filtro modulato da LFO Leslie, Distorsione, Delay)
     mainFilter.setResonance (baseResonance);
 
     for (int sample = 0; sample < numSamples; ++sample)
     {
-        float lfoVal = leslieLFO.processSample (0.0f);
-        float volumeModulation = 0.875f + (lfoVal * 0.125f);
-        leftChannel[sample]  *= volumeModulation;
-        rightChannel[sample] *= volumeModulation;
+        float leslieVal = leslieLFO.processSample (0.0f);
+        if (macroLeslie > 0.0f) {
+            float volumeMod = 0.85f + (leslieVal * 0.15f * macroLeslie);
+            leftChannel[sample] *= volumeMod;
+            rightChannel[sample] *= volumeMod;
+        }
 
-        float modulatedCutoff = juce::jlimit (20.0f, 20000.0f, baseCutoff + (lfoVal * 600.0f));
+        float lfoFilterMod = globalLFO.processSample (0.0f) * lfoDepth * 300.0f;
+        float modulatedCutoff = juce::jlimit (20.0f, 20000.0f, baseCutoff + lfoFilterMod + (leslieVal * macroLeslie * 400.0f));
         mainFilter.setCutoffFrequency (modulatedCutoff);
 
         float samples[2] = { leftChannel[sample], rightChannel[sample] };
@@ -113,8 +150,6 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         rightChannel[sample] = mainFilter.processSample (1, samples[1]);
     }
 
-    // Risolto errore MSVC: applichiamo la distorsione direttamente sui campioni del buffer 
-    // bypassando i limiti della lambda con cattura nel modulo WaveShaper di JUCE 7
     float comp = 1.0f / std::sqrt (distDrive);
     for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
     {
@@ -146,15 +181,30 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 juce::AudioProcessorValueTreeState::ParameterLayout MkManSynthAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    
+    // I 15 PARAMETRI COMPLETI
+    params.push_back (std::make_unique<juce::AudioParameterChoice> ("osc1_wave", "Osc 1 Waveform", juce::StringArray{"Sine", "Saw", "Square", "Triangle"}, 0));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> ("osc2_wave", "Osc 2 Waveform", juce::StringArray{"Sine", "Saw", "Square", "Triangle"}, 0));
     params.push_back (std::make_unique<juce::AudioParameterFloat> ("osc_mix", "Osc Mix", 0.0f, 1.0f, 0.5f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("filter_cutoff", "Base Cutoff", 100.0f, 8000.0f, 2000.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("filter_q", "Filter Q", 1.0f, 20.0f, 1.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("dist_drive", "Distortion Drive", 1.0f, 15.0f, 1.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("osc1_detune", "Osc 1 Unison Detune", 0.0f, 50.0f, 5.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("osc2_detune", "Osc 2 Unison Detune", 0.0f, 50.0f, 10.0f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_attack", "Attack Time", 0.01f, 3.0f, 0.1f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_decay", "Decay Time", 0.01f, 3.0f, 0.3f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_sustain", "Sustain Level", 0.0f, 1.0f, 0.7f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("env_release", "Release Time", 0.01f, 5.0f, 0.5f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("lfo_rate", "LFO Frequency", 0.1f, 20.0f, 5.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("lfo_depth", "LFO Amount", 0.0f, 1.0f, 0.2f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("filter_cutoff", "Base Cutoff", 20.0f, 15000.0f, 2000.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("filter_q", "Filter Q (Res)", 1.0f, 15.0f, 1.0f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("dist_drive", "Distortion Drive", 1.0f, 12.0f, 1.0f));
     params.push_back (std::make_unique<juce::AudioParameterFloat> ("delay_time", "Delay Time", 0.05f, 1.0f, 0.3f));
     params.push_back (std::make_unique<juce::AudioParameterFloat> ("delay_feedback", "Delay Feedback", 0.0f, 0.95f, 0.4f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("macro_dark_reverb", "Macro 1: Dark Reverb", 0.0f, 1.0f, 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("macro_cyber_punch", "Macro 2: Cyber Punch", 0.0f, 1.0f, 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("macro_leslie", "Macro 3: Leslie Simulator", 0.0f, 1.0f, 0.0f));
+    
+    params.push_back (std::make_unique<juce::AudioParameterFloat> ("macro_leslie", "Macro: Leslie", 0.0f, 1.0f, 0.0f));
+
     return { params.begin(), params.end() };
 }
 
