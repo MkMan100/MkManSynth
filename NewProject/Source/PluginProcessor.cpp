@@ -20,7 +20,7 @@ MkManSynthAudioProcessor::MkManSynthAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        ),
-       apvts (*this, nullptr, "Parameters", createParameterLayout()) // INIZIALIZZAZIONE APVTS
+       apvts (*this, nullptr, "Parameters", createParameterLayout())
 #endif
 {
     // Generiamo le wavetable personalizzate
@@ -32,12 +32,9 @@ MkManSynthAudioProcessor::MkManSynthAudioProcessor()
     {
         auto* voice = new SynthVoice();
         
-        // Carichiamo di default la wavetable dell'organo su tutti e 10 gli oscillatori della voce
-        for (int osc = 0; osc < 5; ++osc)
-        {
-            voice->setWavetable (osc, wavetableOrgan, true);  // Gruppo 1
-            voice->setWavetable (osc, wavetableOrgan, false); // Gruppo 2
-        }
+        // Carichiamo di default la wavetable dell'organo
+        voice->updateWavetable (wavetableOrgan, true);  // Gruppo 1
+        voice->updateWavetable (wavetableOrgan, false); // Gruppo 2
         
         mySynth.addVoice (voice);
     }
@@ -45,6 +42,8 @@ MkManSynthAudioProcessor::MkManSynthAudioProcessor()
     mySynth.clearSounds();
     mySynth.addSound (new juce::SynthesiserSound());
 }
+
+MkManSynthAudioProcessor::~MkManSynthAudioProcessor() {}
 
 //==============================================================================
 const juce::String MkManSynthAudioProcessor::getName() const
@@ -94,17 +93,24 @@ int MkManSynthAudioProcessor::getCurrentProgram()
     return 0;
 }
 
-void MkManSynthAudioProcessor::setCurrentProgram (int index)
-{
-}
+void MkManSynthAudioProcessor::setCurrentProgram (int index) {}
 
 const juce::String MkManSynthAudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void MkManSynthAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void MkManSynthAudioProcessor::changeProgramName (int index, const juce::String& newName) {}
+
+// --- METODI FONDAMENTALI PER LA UI ---
+juce::AudioProcessorEditor* MkManSynthAudioProcessor::createEditor()
 {
+    return new MkManSynthAudioProcessorEditor (*this);
+}
+
+bool MkManSynthAudioProcessor::hasEditor() const
+{
+    return true;
 }
 
 //==============================================================================
@@ -147,9 +153,7 @@ void MkManSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     stereoDelay.setMaximumDelayInSamples (static_cast<int>(sampleRate * 2.0));
 }
 
-void MkManSynthAudioProcessor::releaseResources()
-{
-}
+void MkManSynthAudioProcessor::releaseResources() {}
 
 #ifndef JucePlugin_PreferredChannelConfigurations
 bool MkManSynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -181,7 +185,7 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // --- LETTURA DEI PARAMETRI DALL'APVTS IN TEMPO REALE ---
+    // --- LETTURA PARAMETRI IN TEMPO REALE ---
     float macroLeslie   = apvts.getRawParameterValue ("macro_leslie")->load();
     float baseCutoff    = apvts.getRawParameterValue ("filter_cutoff")->load();
     float baseResonance = apvts.getRawParameterValue ("filter_q")->load();
@@ -196,7 +200,7 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         leslieLFO.setFrequency (leslieSpeed);
     }
 
-    // 1. Generiamo l'audio dell'unisono dalle voci
+    // 1. Audio dell'unisono dalle voci
     mySynth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
 
     // 2. Applicazione Filtro + Leslie
@@ -225,7 +229,7 @@ void MkManSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         rightChannel[sample] = mainFilter.processSample (1, samples[1]);
     }
 
-    // 3. Aggiorniamo dinamicamente il drive della distorsione iperbolica prima del calcolo
+    // 3. Drive della distorsione iperbolica
     distortionModule.functionToUse = [distDrive] (float x) {
         float distortedSample = std::tanh (x * distDrive);
         return distortedSample * (1.0f / std::sqrt (distDrive));
@@ -294,9 +298,10 @@ void MkManSynthAudioProcessor::createCustomWavetables()
         dataCosmic[i] = sampleCosmic;
     }
 
-    wavetableOrgan = juce::dsp::Oscillator<float>::WaveTable (bufferOrgan);
-    wavetableBrass = juce::dsp::Oscillator<float>::WaveTable (bufferBrass);
-    wavetableCosmic = juce::dsp::Oscillator<float>::WaveTable (bufferCosmic);
+    // CORRETTO: Creazione e assegnazione esplicita per WaveTableOscillator
+    wavetableOrgan = juce::dsp::WaveTableOscillator<float>::WaveTableType<float> (bufferOrgan);
+    wavetableBrass = juce::dsp::WaveTableOscillator<float>::WaveTableType<float> (bufferBrass);
+    wavetableCosmic = juce::dsp::WaveTableOscillator<float>::WaveTableType<float> (bufferCosmic);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout MkManSynthAudioProcessor::createParameterLayout()
