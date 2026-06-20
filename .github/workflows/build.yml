@@ -1,4 +1,4 @@
-name: Build JUCE Plugin (Projucer)
+name: Build JUCE Plugin (Direct MSBuild VS2026)
 
 on:
   push:
@@ -15,23 +15,15 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Install JUCE
-      run: |
-        git clone https://github.com/juce-framework/JUCE.git --depth 1
-        
-    - name: Generate Visual Studio Solution
-      run: |
-        ./JUCE/tools/Projucer/Projucer.exe --resave *.jucer
-
     - name: Build Standalone and VST3
       run: |
-        msbuild Builds/VisualStudio2022/*_Standalone.vcxproj /p:Configuration=Release /p:Platform=x64
-        msbuild Builds/VisualStudio2022/*_VST3.vcxproj /p:Configuration=Release /p:Platform=x64
+        msbuild Builds/VisualStudio2026/*_Standalone.vcxproj /p:Configuration=Release /p:Platform=x64
+        msbuild Builds/VisualStudio2026/*_VST3.vcxproj /p:Configuration=Release /p:Platform=x64
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: MkManSynth-Windows
         path: |
-          Builds/VisualStudio2022/x64/Release/Standalone/
-          Builds/VisualStudio2022/x64/Release/VST3/
+          Builds/VisualStudio2026/x64/Release/Standalone/
+          Builds/VisualStudio2026/x64/Release/VST3/
