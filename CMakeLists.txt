@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Disattiva esplicitamente gli esempi e i test di JUCE per evitare che fallisca la build
+# Disattiva gli esempi e i test di JUCE
 set(JUCE_BUILD_EXAMPLES OFF CACHE INTERNAL "")
 set(JUCE_BUILD_EXTRAS OFF CACHE INTERNAL "")
 
@@ -14,6 +14,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JUCE)
 
+# La configurazione VST3 si imposta direttamente qui dentro in JUCE 7
 juce_add_plugin(MkManSynth
     VERSION 1.0.0
     COMPANY_NAME "MkMan"
@@ -23,18 +24,16 @@ juce_add_plugin(MkManSynth
     IS_MIDI_EFFECT FALSE
     PRODUCT_NAME "MkManSynth"
     FORMATS VST3 Standalone
+    VST3_CATEGORIES Synth
+    JUCE_VST3_CAN_REPLACE_VST2 FALSE # Rimuove la dipendenza dai file VST2 mancanti
 )
 
-# RIGA CRUCIALE: Disattiva la compatibilità VST2 dentro il VST3, eliminando l'errore del file mancante
-juce_set_aax_dst_vst2_vst3_parameters(MkManSynth VST2_COMPATIBILITY OFF)
-
-# Cerca i file SOLO dentro la cartella NewProject/Source, ignorando la cartella build
+# Cerca i file SOLO dentro la cartella NewProject/Source
 file(GLOB_RECURSE SOUND_SOURCES CONFIGURE_DEPENDS 
     "NewProject/Source/*.cpp" 
     "NewProject/Source/*.h"
 )
 
-# Passiamo a CMake la lista dei file trovati automaticamente
 target_sources(MkManSynth PRIVATE ${SOUND_SOURCES})
 
 target_link_libraries(MkManSynth PRIVATE
