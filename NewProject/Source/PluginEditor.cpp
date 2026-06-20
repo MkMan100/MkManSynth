@@ -4,15 +4,19 @@
 MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p), oscilloscope (p)
 {
-    // Inizializza e mostra l'oscilloscopio a schermo
+    // Mostra l'oscilloscopio a schermo
     addAndMakeVisible (oscilloscope);
 
+    // Lambda Helper aggiornata per distanziare i testi ed evitare accavallamenti
     auto initRotary = [this] (juce::Slider& s, juce::Label& l, const juce::String& text) {
         s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 65, 18);
+        // Box del valore numerico più basso (14px) per lasciare spazio sotto
+        s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 14); 
         addAndMakeVisible (s);
+        
         l.setText (text, juce::dontSendNotification);
         l.setJustificationType (juce::Justification::centred);
+        l.setFont (juce::Font (12.0f, juce::Font::plain)); // Font più compatto ed elegante
         addAndMakeVisible (l);
     };
 
@@ -58,7 +62,10 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     lfoDestMenu.addItem ("Panpot", 3);
     lfoDestMenu.addItem ("Pitch", 4);
     lfoDestAttach = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, "lfo_dest", lfoDestMenu);
+    
     lfoDestLabel.setText (juce::String ("LFO Target"), juce::dontSendNotification);
+    lfoDestLabel.setFont (juce::Font (12.0f, juce::Font::plain));
+    lfoDestLabel.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (lfoDestLabel);
 
     // --- FILTER & FX & EQ ---
@@ -77,7 +84,7 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     initRotary (eqTrebleSlider, eqTrebleLabel, juce::String("EQ Treble"));
     eqTrebleAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "eq_treble", eqTrebleSlider);
 
-    // --- MACRO ---
+    // --- PERFORMANCE MACROS ---
     initRotary (macroLeslieSlider, macroLeslieLabel, juce::String("Leslie Mod"));
     macroLeslieAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_leslie", macroLeslieSlider);
 
@@ -87,6 +94,7 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     initRotary (macroSpreadSlider, macroSpreadLabel, juce::String("Unison Spread"));
     macroSpreadAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_spread", macroSpreadSlider);
 
+    // Finestra ampia
     setSize (950, 500);
 }
 
@@ -94,14 +102,14 @@ MkManSynthAudioProcessorEditor::~MkManSynthAudioProcessorEditor() {}
 
 void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xFF14141C)); 
+    g.fillAll (juce::Colour (0xFF14141C)); // Sfondo dark premium
 
     g.setColour (juce::Colours::white.withAlpha (0.07f));
-    g.drawRect (15, 15, 680, 140, 2);   // Box Osc
+    g.drawRect (15, 15, 680, 140, 2);   // Box Oscillatori
     g.drawRect (15, 175, 430, 140, 2);  // Box ADSR
     g.drawRect (460, 175, 235, 140, 2); // Box LFO
-    g.drawRect (15, 335, 680, 150, 2);  // Box FX/EQ
-    g.drawRect (715, 15, 220, 470, 2);  // Box Macro
+    g.drawRect (15, 335, 680, 150, 2);  // Box FX ed EQ
+    g.drawRect (715, 15, 220, 470, 2);  // Box Macro Performance
 
     g.setColour (juce::Colours::cyan.withAlpha (0.8f));
     g.setFont (juce::Font (14.0f, juce::Font::bold));
@@ -116,62 +124,42 @@ void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void MkManSynthAudioProcessorEditor::resized()
 {
-    // --- Riga 1: Oscillatori ---
+    // Rigida riorganizzazione geometrica senza sovrapposizioni
+
+    // --- Riga 1: Oscillatori ed Oscilloscopio centrale ---
     osc1MorphSlider.setBounds (30, 55, 90, 90);
-    osc1MorphLabel.setBounds (30, 125, 90, 20);
+    osc1MorphLabel.setBounds (30, 132, 90, 20); // Spostata a 132px (+7px di respiro)
     
     osc1DetuneSlider.setBounds (140, 55, 90, 90);
-    osc1DetuneLabel.setBounds (140, 125, 90, 20);
+    osc1DetuneLabel.setBounds (140, 132, 90, 20);
 
     oscMixSlider.setBounds (250, 55, 90, 90);
-    oscMixLabel.setBounds (250, 125, 90, 20);
+    oscMixLabel.setBounds (250, 132, 90, 20);
 
-    // L'oscilloscopio riempie elegantemente la sezione centrale della riga degli oscillatori!
+    // Centrato perfettamente nel box oscillatori
     oscilloscope.setBounds (355, 45, 90, 95);
 
     osc2MorphSlider.setBounds (460, 55, 90, 90);
-    osc2MorphLabel.setBounds (460, 125, 90, 20);
+    osc2MorphLabel.setBounds (460, 132, 90, 20);
 
     osc2DetuneSlider.setBounds (570, 55, 90, 90);
-    osc2DetuneLabel.setBounds (570, 125, 90, 20);
+    osc2DetuneLabel.setBounds (570, 132, 90, 20);
 
     // --- Riga 2: ADSR & LFO ---
     attackSlider.setBounds (25, 215, 85, 85);
-    attackLabel.setBounds (25, 280, 85, 20);
+    attackLabel.setBounds (25, 287, 85, 20);
+    
     decaySlider.setBounds (120, 215, 85, 85);
-    decayLabel.setBounds (120, 280, 85, 20);
+    decayLabel.setBounds (120, 287, 85, 20);
+    
     sustainSlider.setBounds (215, 215, 85, 85);
-    sustainLabel.setBounds (215, 280, 85, 20);
+    sustainLabel.setBounds (215, 287, 85, 20);
+    
     releaseSlider.setBounds (310, 215, 85, 85);
-    releaseLabel.setBounds (310, 280, 85, 20);
+    releaseLabel.setBounds (310, 287, 85, 20);
 
     lfoRateSlider.setBounds (470, 215, 80, 80);
-    lfoRateLabel.setBounds (470, 280, 80, 20);
-    lfoDepthSlider.setBounds (555, 215, 80, 80);
-    lfoDepthLabel.setBounds (555, 280, 80, 20);
-    lfoDestMenu.setBounds (640, 220, 50, 22);
-    lfoDestLabel.setBounds (630, 248, 70, 20);
-
-    // --- Riga 3: Filtro, Distorsione ed EQ ---
-    cutoffSlider.setBounds (25, 375, 95, 95);
-    cutoffLabel.setBounds (25, 450, 95, 20);
-    qSlider.setBounds (135, 375, 95, 95);
-    qLabel.setBounds (135, 450, 95, 20);
-    distDriveSlider.setBounds (245, 375, 95, 95);
-    distDriveLabel.setBounds (245, 450, 95, 20);
+    lfoRateLabel.setBounds (470, 287, 80, 20);
     
-    eqBassSlider.setBounds (450, 375, 95, 95);
-    eqBassLabel.setBounds (450, 450, 95, 20);
-    eqTrebleSlider.setBounds (560, 375, 95, 95);
-    eqTrebleLabel.setBounds (560, 450, 95, 20);
-
-    // --- Colonna Macro Destra ---
-    macroLeslieSlider.setBounds (760, 60, 130, 130);
-    macroLeslieLabel.setBounds (760, 170, 130, 20);
-
-    macroSpaceSlider.setBounds (760, 205, 130, 130);
-    macroSpaceLabel.setBounds (760, 315, 130, 20);
-
-    macroSpreadSlider.setBounds (760, 350, 130, 130);
-    macroSpreadLabel.setBounds (760, 460, 130, 20);
-}
+    lfoDepthSlider.setBounds (555, 215, 80, 80);
+    lfoDepthLabel.setBounds (555, 287
