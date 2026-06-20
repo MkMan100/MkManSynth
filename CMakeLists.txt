@@ -25,7 +25,10 @@ juce_add_plugin(MkManSynth
     FORMATS VST3 Standalone
 )
 
-# CORREZIONE: Cerca i file SOLO dentro la cartella NewProject/Source, ignorando la cartella build!
+# RIGA CRUCIALE: Disattiva la compatibilità VST2 dentro il VST3, eliminando l'errore del file mancante
+juce_set_aax_dst_vst2_vst3_parameters(MkManSynth VST2_COMPATIBILITY OFF)
+
+# Cerca i file SOLO dentro la cartella NewProject/Source, ignorando la cartella build
 file(GLOB_RECURSE SOUND_SOURCES CONFIGURE_DEPENDS 
     "NewProject/Source/*.cpp" 
     "NewProject/Source/*.h"
