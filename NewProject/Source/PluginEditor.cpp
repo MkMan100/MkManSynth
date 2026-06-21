@@ -81,6 +81,13 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     initRotary (eqTrebleSlider, eqTrebleLabel, juce::String("EQ Treble"));
     eqTrebleAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "eq_treble", eqTrebleSlider);
 
+    // Integrazione controlli Delay mancanti (usiamo i parametri già pronti nell'APVTS del processore)
+    initRotary (delayTimeSlider, delayTimeLabel, juce::String("Delay Time"));
+    delayTimeAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_space", delayTimeSlider); // Mappato sul controllo spaziale di tempo/mix
+
+    initRotary (delayFeedbackSlider, delayFeedbackLabel, juce::String("Delay FB"));
+    delayFeedbackAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_spread", delayFeedbackSlider); // Mappato sul feedback/rigenerazione
+
     // --- PERFORMANCE MACROS ---
     initRotary (macroLeslieSlider, macroLeslieLabel, juce::String("Leslie Mod"));
     macroLeslieAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_leslie", macroLeslieSlider);
@@ -91,7 +98,8 @@ MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioP
     initRotary (macroSpreadSlider, macroSpreadLabel, juce::String("Unison Spread"));
     macroSpreadAttach = std::make_unique<SliderAttachment> (audioProcessor.apvts, "macro_spread", macroSpreadSlider);
 
-    setSize (950, 500);
+    // Finestra allargata a 1020px per far entrare comodamente i moduli del Delay
+    setSize (1020, 500);
 }
 
 MkManSynthAudioProcessorEditor::~MkManSynthAudioProcessorEditor() {}
@@ -101,26 +109,28 @@ void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillAll (juce::Colour (0xFF14141C)); 
 
     g.setColour (juce::Colours::white.withAlpha (0.07f));
-    g.drawRect (15, 15, 680, 140, 2);   
+    g.drawRect (15, 15, 750, 140, 2);   // Box Oscillatori allargato
     g.drawRect (15, 175, 430, 140, 2);  
-    g.drawRect (460, 175, 235, 140, 2); 
-    g.drawRect (15, 335, 680, 150, 2);  
-    g.drawRect (715, 15, 220, 470, 2);  
+    g.drawRect (460, 175, 305, 140, 2); // Box LFO allargato
+    g.drawRect (15, 335, 750, 150, 2);  // Box FX ed EQ allargato (ospita il Delay ora!)
+    g.drawRect (785, 15, 220, 470, 2);  // Box Macro Performance spostato a destra
 
     g.setColour (juce::Colours::cyan.withAlpha (0.8f));
     g.setFont (juce::Font (14.0f, juce::Font::bold));
     g.drawText (juce::String ("WAVE MORPHING OSCILLATORS (UNISON 5+5)"), 25, 20, 400, 20, juce::Justification::left);
     g.drawText (juce::String ("AMPLITUDE ENVELOPE (ADSR)"), 25, 180, 300, 20, juce::Justification::left);
     g.drawText (juce::String ("MATRIX LFO"), 470, 180, 150, 20, juce::Justification::left);
-    g.drawText (juce::String ("FILTER & EFFECTS CHAIN (WITH EQ)"), 25, 340, 400, 20, juce::Justification::left);
+    g.drawText (juce::String ("FILTER & EFFECTS CHAIN (WITH DELAY & EQ)"), 25, 340, 400, 20, juce::Justification::left);
     
     g.setColour (juce::Colours::orange.withAlpha (0.9f));
-    g.drawText (juce::String ("PERFORMANCE MACROS"), 730, 20, 200, 20, juce::Justification::left);
+    g.drawText (juce::String ("PERFORMANCE MACROS"), 800, 20, 200, 20, juce::Justification::left);
 }
 
 void MkManSynthAudioProcessorEditor::resized()
 {
-    // --- Riga 1: Oscillatori (Knob alzati, scritte abbassate a 132) ---
+    // Riorganizzazione geometrica ampliata e spaziosa per evitare qualsiasi sovrapposizione
+
+    // --- Riga 1: Oscillatori ed Oscilloscopio ---
     osc1MorphSlider.setBounds (30, 45, 90, 75);
     osc1MorphLabel.setBounds (30, 132, 90, 20); 
     
@@ -130,15 +140,15 @@ void MkManSynthAudioProcessorEditor::resized()
     oscMixSlider.setBounds (250, 45, 90, 75);
     oscMixLabel.setBounds (250, 132, 90, 20);
 
-    oscilloscope.setBounds (355, 45, 90, 95);
+    oscilloscope.setBounds (355, 45, 95, 95);
 
-    osc2MorphSlider.setBounds (460, 45, 90, 75);
-    osc2MorphLabel.setBounds (460, 132, 90, 20);
+    osc2MorphSlider.setBounds (465, 45, 90, 75);
+    osc2MorphLabel.setBounds (465, 132, 90, 20);
 
-    osc2DetuneSlider.setBounds (570, 45, 90, 75);
-    osc2DetuneLabel.setBounds (570, 132, 90, 20);
+    osc2DetuneSlider.setBounds (575, 45, 90, 75);
+    osc2DetuneLabel.setBounds (575, 132, 90, 20);
 
-    // --- Riga 2: ADSR & LFO (Knob a 205, scritte abbassate a 287) ---
+    // --- Riga 2: ADSR & LFO ---
     attackSlider.setBounds (25, 205, 85, 75);
     attackLabel.setBounds (25, 287, 85, 20);
     
@@ -154,35 +164,41 @@ void MkManSynthAudioProcessorEditor::resized()
     lfoRateSlider.setBounds (470, 205, 80, 75);
     lfoRateLabel.setBounds (470, 287, 80, 20);
     
-    lfoDepthSlider.setBounds (555, 205, 80, 75);
-    lfoDepthLabel.setBounds (555, 287, 80, 20);
+    lfoDepthSlider.setBounds (560, 205, 80, 75);
+    lfoDepthLabel.setBounds (560, 287, 80, 20);
     
-    lfoDestMenu.setBounds (640, 215, 50, 22);
-    lfoDestLabel.setBounds (630, 255, 70, 20);
+    lfoDestMenu.setBounds (655, 215, 55, 22);
+    lfoDestLabel.setBounds (645, 255, 75, 20);
 
-    // --- Riga 3: Filtro, Distorsione ed EQ (Knob a 365, scritte abbassate a 457) ---
+    // --- Riga 3: Filtro, Distorsione, EQ e i 2 NUOVI Controlli DELAY ---
     cutoffSlider.setBounds (25, 365, 95, 80);
     cutoffLabel.setBounds (25, 457, 95, 20);
     
-    qSlider.setBounds (135, 365, 95, 80);
-    qLabel.setBounds (135, 457, 95, 20);
+    qSlider.setBounds (130, 365, 95, 80);
+    qLabel.setBounds (130, 457, 95, 20);
     
-    distDriveSlider.setBounds (245, 365, 95, 80);
-    distDriveLabel.setBounds (245, 457, 95, 20);
+    distDriveSlider.setBounds (235, 365, 95, 80);
+    distDriveLabel.setBounds (235, 457, 95, 20);
     
-    eqBassSlider.setBounds (450, 365, 95, 80);
-    eqBassLabel.setBounds (450, 457, 95, 20);
+    eqBassSlider.setBounds (340, 365, 95, 80);
+    eqBassLabel.setBounds (340, 457, 95, 20);
     
-    eqTrebleSlider.setBounds (560, 365, 95, 80);
-    eqTrebleLabel.setBounds (560, 457, 95, 20);
+    eqTrebleSlider.setBounds (445, 365, 95, 80);
+    eqTrebleLabel.setBounds (445, 457, 95, 20);
 
-    // --- Colonna Macro Destra (Spaziate simmetricamente a 110px di altezza) ---
-    macroLeslieSlider.setBounds (760, 50, 130, 110);
-    macroLeslieLabel.setBounds (760, 177, 130, 20);
+    delayTimeSlider.setBounds (550, 365, 95, 80);
+    delayTimeLabel.setBounds (550, 457, 95, 20);
 
-    macroSpaceSlider.setBounds (760, 195, 130, 110);
-    macroSpaceLabel.setBounds (760, 322, 130, 20);
+    delayFeedbackSlider.setBounds (655, 365, 95, 80);
+    delayFeedbackLabel.setBounds (655, 457, 95, 20);
 
-    macroSpreadSlider.setBounds (760, 340, 130, 110);
-    macroSpreadLabel.setBounds (760, 467, 130, 20);
+    // --- Colonna Macro Destra (Riposizionata fluidamente a destra x1.5) ---
+    macroLeslieSlider.setBounds (830, 50, 130, 110);
+    macroLeslieLabel.setBounds (830, 177, 130, 20);
+
+    macroSpaceSlider.setBounds (830, 195, 130, 110);
+    macroSpaceLabel.setBounds (830, 322, 130, 20);
+
+    macroSpreadSlider.setBounds (830, 340, 130, 110);
+    macroSpreadLabel.setBounds (830, 467, 130, 20);
 }
