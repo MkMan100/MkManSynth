@@ -4,10 +4,8 @@
 MkManSynthAudioProcessorEditor::MkManSynthAudioProcessorEditor (MkManSynthAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p), oscilloscope (p)
 {
-    // Mostra l'oscilloscopio a schermo
     addAndMakeVisible (oscilloscope);
 
-    // Lambda Helper aggiornata per distanziare i testi ed evitare accavallamenti
     auto initRotary = [this] (juce::Slider& s, juce::Label& l, const juce::String& text) {
         s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 70, 14); 
@@ -122,69 +120,69 @@ void MkManSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void MkManSynthAudioProcessorEditor::resized()
 {
-    // --- Riga 1: Oscillatori ed Oscilloscopio centrale ---
-    osc1MorphSlider.setBounds (30, 55, 90, 90);
+    // --- Riga 1: Oscillatori (Knob alzati, scritte abbassate a 132) ---
+    osc1MorphSlider.setBounds (30, 45, 90, 75);
     osc1MorphLabel.setBounds (30, 132, 90, 20); 
     
-    osc1DetuneSlider.setBounds (140, 55, 90, 90);
+    osc1DetuneSlider.setBounds (140, 45, 90, 75);
     osc1DetuneLabel.setBounds (140, 132, 90, 20);
 
-    oscMixSlider.setBounds (250, 55, 90, 90);
+    oscMixSlider.setBounds (250, 45, 90, 75);
     oscMixLabel.setBounds (250, 132, 90, 20);
 
     oscilloscope.setBounds (355, 45, 90, 95);
 
-    osc2MorphSlider.setBounds (460, 55, 90, 90);
+    osc2MorphSlider.setBounds (460, 45, 90, 75);
     osc2MorphLabel.setBounds (460, 132, 90, 20);
 
-    osc2DetuneSlider.setBounds (570, 55, 90, 90);
+    osc2DetuneSlider.setBounds (570, 45, 90, 75);
     osc2DetuneLabel.setBounds (570, 132, 90, 20);
 
-    // --- Riga 2: ADSR & LFO ---
-    attackSlider.setBounds (25, 215, 85, 85);
+    // --- Riga 2: ADSR & LFO (Knob a 205, scritte abbassate a 287) ---
+    attackSlider.setBounds (25, 205, 85, 75);
     attackLabel.setBounds (25, 287, 85, 20);
     
-    decaySlider.setBounds (120, 215, 85, 85);
+    decaySlider.setBounds (120, 205, 85, 75);
     decayLabel.setBounds (120, 287, 85, 20);
     
-    sustainSlider.setBounds (215, 215, 85, 85);
+    sustainSlider.setBounds (215, 205, 85, 75);
     sustainLabel.setBounds (215, 287, 85, 20);
     
-    releaseSlider.setBounds (310, 215, 85, 85);
+    releaseSlider.setBounds (310, 205, 85, 75);
     releaseLabel.setBounds (310, 287, 85, 20);
 
-    lfoRateSlider.setBounds (470, 215, 80, 80);
+    lfoRateSlider.setBounds (470, 205, 80, 75);
     lfoRateLabel.setBounds (470, 287, 80, 20);
     
-    lfoDepthSlider.setBounds (555, 215, 80, 80);
+    lfoDepthSlider.setBounds (555, 205, 80, 75);
     lfoDepthLabel.setBounds (555, 287, 80, 20);
     
-    lfoDestMenu.setBounds (640, 220, 50, 22);
-    lfoDestLabel.setBounds (630, 250, 70, 20);
+    lfoDestMenu.setBounds (640, 215, 50, 22);
+    lfoDestLabel.setBounds (630, 255, 70, 20);
 
-    // --- Riga 3: Filtro, Distorsione ed EQ ---
-    cutoffSlider.setBounds (25, 375, 95, 95);
+    // --- Riga 3: Filtro, Distorsione ed EQ (Knob a 365, scritte abbassate a 457) ---
+    cutoffSlider.setBounds (25, 365, 95, 80);
     cutoffLabel.setBounds (25, 457, 95, 20);
     
-    qSlider.setBounds (135, 375, 95, 95);
+    qSlider.setBounds (135, 365, 95, 80);
     qLabel.setBounds (135, 457, 95, 20);
     
-    distDriveSlider.setBounds (245, 375, 95, 95);
+    distDriveSlider.setBounds (245, 365, 95, 80);
     distDriveLabel.setBounds (245, 457, 95, 20);
     
-    eqBassSlider.setBounds (450, 375, 95, 95);
+    eqBassSlider.setBounds (450, 365, 95, 80);
     eqBassLabel.setBounds (450, 457, 95, 20);
     
-    eqTrebleSlider.setBounds (560, 375, 95, 95);
+    eqTrebleSlider.setBounds (560, 365, 95, 80);
     eqTrebleLabel.setBounds (560, 457, 95, 20);
 
-    // --- Colonna Macro Destra ---
-    macroLeslieSlider.setBounds (760, 60, 130, 130);
+    // --- Colonna Macro Destra (Spaziate simmetricamente a 110px di altezza) ---
+    macroLeslieSlider.setBounds (760, 50, 130, 110);
     macroLeslieLabel.setBounds (760, 177, 130, 20);
 
-    macroSpaceSlider.setBounds (760, 205, 130, 130);
+    macroSpaceSlider.setBounds (760, 195, 130, 110);
     macroSpaceLabel.setBounds (760, 322, 130, 20);
 
-    macroSpreadSlider.setBounds (760, 350, 130, 130);
+    macroSpreadSlider.setBounds (760, 340, 130, 110);
     macroSpreadLabel.setBounds (760, 467, 130, 20);
 }
